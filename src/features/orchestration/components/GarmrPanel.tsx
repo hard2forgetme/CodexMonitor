@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { Markdown } from "../../messages/components/Markdown";
 
 type GarmrMessage = {
   id: string;
@@ -42,10 +43,10 @@ export function GarmrPanel({ messages, isProcessing, onClose }: GarmrPanelProps)
             {msg.role === "user" ? (
               <div className="garmr-user-text">{msg.text}</div>
             ) : (
-              <div
+              <Markdown
+                value={msg.text}
                 className="garmr-assistant-text"
-                // eslint-disable-next-line react/no-danger
-                dangerouslySetInnerHTML={{ __html: renderMarkdownSimple(msg.text) }}
+                codeBlockStyle="message"
               />
             )}
           </div>
@@ -54,32 +55,4 @@ export function GarmrPanel({ messages, isProcessing, onClose }: GarmrPanelProps)
       </div>
     </div>
   );
-}
-
-function renderMarkdownSimple(text: string): string {
-  // 1. Escape HTML entities first (XSS prevention).
-  let result = text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-
-  // 2. Extract code blocks BEFORE inline processing to prevent conflicts.
-  const codeBlocks: string[] = [];
-  result = result.replace(/```(\w*)\n([\s\S]*?)```/g, (_match, _lang, code) => {
-    const idx = codeBlocks.length;
-    codeBlocks.push(`<pre><code>${code}</code></pre>`);
-    return `\x00CODEBLOCK${idx}\x00`;
-  });
-
-  // 3. Inline formatting (safe now that code blocks are extracted).
-  result = result
-    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    .replace(/`([^`]+)`/g, "<code>$1</code>")
-    .replace(/^---$/gm, "<hr>")
-    .replace(/\n/g, "<br>");
-
-  // 4. Restore code blocks.
-  result = result.replace(/\x00CODEBLOCK(\d+)\x00/g, (_match, idx) => codeBlocks[Number(idx)]);
-
-  return result;
 }

@@ -267,4 +267,157 @@ mod tests {
         assert_eq!(result.tier, Tier::Heavy);
         assert!(result.synapse_mode);
     }
+
+    // ---- Tier 3 keyword triggers (no SYNAPSE) ----
+
+    #[test]
+    fn design_architecture_trigger_forces_heavy() {
+        let result = classify_task("Help me design architecture for a chat app");
+        assert_eq!(result.tier, Tier::Heavy);
+        assert!(!result.synapse_mode);
+    }
+
+    #[test]
+    fn production_ready_trigger_forces_heavy() {
+        let result = classify_task("Make this production-ready");
+        assert_eq!(result.tier, Tier::Heavy);
+    }
+
+    // ---- Empty / edge-case input ----
+
+    #[test]
+    fn empty_query_routes_to_fast() {
+        let result = classify_task("");
+        assert_eq!(result.tier, Tier::Fast);
+        assert!(!result.synapse_mode);
+    }
+
+    #[test]
+    fn whitespace_only_query_routes_to_fast() {
+        let result = classify_task("   \n  \t  ");
+        assert_eq!(result.tier, Tier::Fast);
+    }
+
+    // ---- Length-driven scoring ----
+
+    #[test]
+    fn very_long_query_elevates_tier() {
+        // 120 words, no trigger keywords, no risk terms — length dominates.
+        let long = "foo ".repeat(120);
+        let result = classify_task(&long);
+        // length=3, complexity=1, risk=0, expertise=1
+        // score = 1*0.4 + 0*0.3 + 3*0.15 + 1*0.15 = 0.4 + 0 + 0.45 + 0.15 = 1.0
+        // Still Fast. Confirm the bucket math.
+        assert_eq!(result.length, 3);
+        assert_eq!(result.tier, Tier::Fast);
+    }
+
+    #[test]
+    fn length_bucket_boundaries() {
+        // <20 words → 1; 20..80 → 2; >=80 → 3
+        let short = classify_task("one two three");
+        assert_eq!(short.length, 1);
+
+        let medium_words = "word ".repeat(40);
+        let medium = classify_task(&medium_words);
+        assert_eq!(medium.length, 2);
+
+        let long_words = "word ".repeat(100);
+        let long = classify_task(&long_words);
+        assert_eq!(long.length, 3);
+    }
+
+    // ---- Risk & complexity signals ----
+
+    #[test]
+    fn risk_indicators_are_scored() {
+        let result =
+            classify_task("deploy this to production with database migration and authentication");
+        assert!(result.risk >= 3, "expected capped risk=3, got {}", result.risk);
+    }
+
+    #[test]
+    fn complexity_indicators_are_scored() {
+        let result = classify_task("implement a distributed microservices architecture pipeline");
+        assert!(
+            result.complexity >= 3,
+            "expected capped complexity=3, got {}",
+            result.complexity
+        );
+    }
+
+    #[test]
+    fn expertise_indicators_are_scored() {
+        let result = classify_task("write a cryptography kernel with gpu optimization");
+        assert!(result.expertise >= 3);
+    }
+
+    // ---- Confidence scoring ----
+
+    #[test]
+    fn forced_tier_has_high_confidence() {
+        let result = classify_task("create a plan for the rollout");
+        assert_eq!(result.tier, Tier::Heavy);
+        assert!((result.confidence - 0.95).abs() < 1e-6);
+    }
+
+    #[test]
+    fn clear_fast_query_has_elevated_confidence() {
+        // "What is X?" → short, no risk, no expertise → score low → confidence 0.85
+        let result = classify_task("What is Rust?");
+        assert_eq!(result.tier, Tier::Fast);
+        assert!(
+            result.confidence >= 0.85,
+            "expected >=0.85, got {}",
+            result.confidence
+        );
+    }
+
+    // ---- SYNAPSE + scoring interaction ----
+
+    #[test]
+    fn synapse_reasoning_is_labeled() {
+        let result = classify_task("council mode: evaluate this");
+        assert!(result.synapse_mode);
+        assert_eq!(result.tier, Tier::Heavy);
+        assert!(result.reasoning.contains("SYNAPSE"));
+    }
+
+    #[test]
+    fn non_synapse_reasoning_reports_word_count() {
+        let result = classify_task("one two three four five");
+        assert!(!result.synapse_mode);
+        assert!(result.reasoning.contains("5 words"));
+    }
+
+    // ---- Case insensitivity ----
+
+    #[test]
+    fn triggers_are_case_insensitive() {
+        let upper = classify_task("COUNCIL MODE please");
+        let mixed = classify_task("Council Mode please");
+        let lower = classify_task("council mode please");
+        assert_eq!(upper.tier, Tier::Heavy);
+        assert_eq!(mixed.tier, Tier::Heavy);
+        assert_eq!(lower.tier, Tier::Heavy);
+        assert!(upper.synapse_mode && mixed.synapse_mode && lower.synapse_mode);
+    }
+
+    // ---- Saturation: scores are capped ----
+
+    #[test]
+    fn risk_saturates_at_three() {
+        let result = classify_task(
+            "production deploy delete migration security authentication payment database sensitive credentials breaking change",
+        );
+        assert_eq!(result.risk, 3, "risk must saturate at 3");
+    }
+
+    #[test]
+    fn complexity_saturates_at_three() {
+        let result = classify_task(
+            "architecture system design distributed concurrent microservices implement build create database schema api design multi-step pipeline workflow",
+        );
+        assert_eq!(result.complexity, 3, "complexity must saturate at 3");
+    }
 }

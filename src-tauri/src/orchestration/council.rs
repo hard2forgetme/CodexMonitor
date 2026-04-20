@@ -402,3 +402,126 @@ fn get_provider_config(provider: Provider, settings: &OrchestrationSettings) -> 
         Provider::Codex => settings.providers.codex.clone(),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ---- Happy path: well-formed JSON ----
+
+    #[test]
+    fn parses_approved_json() {
+        let (status, suggestions) = parse_review_response(
+            r#"{"status": "APPROVED", "suggestions": "Looks good"}"#,
+        );
+        assert_eq!(status, ReviewStatus::Approved);
+        assert_eq!(suggestions, "Looks good");
+    }
+
+    #[test]
+    fn parses_needs_revision_json() {
+        let (status, suggestions) = parse_review_response(
+            r#"{"status": "NEEDS_REVISION", "suggestions": "Fix the edge case"}"#,
+        );
+        assert_eq!(status, ReviewStatus::NeedsRevision);
+        assert_eq!(suggestions, "Fix the edge case");
+    }
+
+    // ---- Case sensitivity: model output is unpredictable ----
+
+    #[test]
+    fn parses_lowercase_status() {
+        let (status, _) = parse_review_response(r#"{"status": "approved"}"#);
+        assert_eq!(status, ReviewStatus::Approved);
+    }
+
+    #[test]
+    fn parses_mixed_case_revision() {
+        let (status, _) = parse_review_response(r#"{"status": "Needs_Revision"}"#);
+        assert_eq!(status, ReviewStatus::NeedsRevision);
+    }
+
+    // ---- Malformed / wrapped output (very common from LLMs) ----
+
+    #[test]
+    fn parses_json_wrapped_in_markdown_fence() {
+        let (status, suggestions) = parse_review_response(
+            "Here is my review:\n```json\n{\"status\": \"APPROVED\", \"suggestions\": \"Nice\"}\n```\nThanks.",
+        );
+        assert_eq!(status, ReviewStatus::Approved);
+        assert_eq!(suggestions, "Nice");
+    }
+
+    #[test]
+    fn parses_json_with_prose_surrounding() {
+        let (status, _) = parse_review_response(
+            "Before I forget: {\"status\": \"APPROVED\"} and that's my final answer.",
+        );
+        assert_eq!(status, ReviewStatus::Approved);
+    }
+
+    #[test]
+    fn missing_status_field_fails_safe() {
+        // Fail-safe: anything we can't confidently parse as APPROVED → NeedsRevision.
+        let (status, _) = parse_review_response(r#"{"suggestions": "ok"}"#);
+        assert_eq!(status, ReviewStatus::NeedsRevision);
+    }
+
+    #[test]
+    fn unrecognized_status_fails_safe() {
+        let (status, _) = parse_review_response(r#"{"status": "PENDING"}"#);
+        assert_eq!(status, ReviewStatus::NeedsRevision);
+    }
+
+    // ---- Non-JSON fallback path ----
+
+    #[test]
+    fn plaintext_approved_falls_through() {
+        let (status, body) =
+            parse_review_response("Looking great — approved by me.");
+        assert_eq!(status, ReviewStatus::Approved);
+        assert!(body.contains("approved"));
+    }
+
+    #[test]
+    fn plaintext_not_approved_fails_safe() {
+        let (status, _) = parse_review_response("This is not approved at all.");
+        assert_eq!(status, ReviewStatus::NeedsRevision);
+    }
+
+    #[test]
+    fn empty_output_fails_safe() {
+        let (status, body) = parse_review_response("");
+        assert_eq!(status, ReviewStatus::NeedsRevision);
+        assert_eq!(body, "");
+    }
+
+    #[test]
+    fn completely_garbled_fails_safe() {
+        let (status, _) = parse_review_response("!@#$%^&*(){[");
+        assert_eq!(status, ReviewStatus::NeedsRevision);
+    }
+
+    // ---- Regression: truncated JSON ----
+
+    #[test]
+    fn truncated_json_falls_back_to_text_scan() {
+        // `find('{')` + `rfind('}')` would give a malformed substring that fails
+        // to parse. Must fall through to plaintext scan.
+        let (status, _) =
+            parse_review_response(r#"{"status": "APPROVED", "suggestions": "trunc"#);
+        // Plaintext scan finds "approved" → approved.
+        assert_eq!(status, ReviewStatus::Approved);
+    }
+
+    // ---- Nested JSON objects (LLM sometimes returns complex outputs) ----
+
+    #[test]
+    fn parses_json_with_nested_object() {
+        let (status, suggestions) = parse_review_response(
+            r#"{"status": "APPROVED", "suggestions": "fine", "metadata": {"model": "gpt-5"}}"#,
+        );
+        assert_eq!(status, ReviewStatus::Approved);
+        assert_eq!(suggestions, "fine");
+    }
+}
