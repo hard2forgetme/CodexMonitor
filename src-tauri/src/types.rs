@@ -648,6 +648,8 @@ pub(crate) struct AppSettings {
     pub(crate) open_app_targets: Vec<OpenAppTarget>,
     #[serde(default = "default_selected_open_app_id", rename = "selectedOpenAppId")]
     pub(crate) selected_open_app_id: String,
+    #[serde(default, rename = "orchestration")]
+    pub(crate) orchestration: OrchestrationSettings,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -1200,8 +1202,159 @@ impl Default for AppSettings {
             global_worktrees_folder: None,
             open_app_targets: default_open_app_targets(),
             selected_open_app_id: default_selected_open_app_id(),
+            orchestration: Default::default(),
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// Orchestration types (GARMR multi-provider integration)
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub(crate) enum OrchestrationTier {
+    Fast = 1,
+    Medium = 2,
+    Heavy = 3,
+}
+
+impl Default for OrchestrationTier {
+    fn default() -> Self {
+        OrchestrationTier::Fast
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub(crate) enum OrchestrationProvider {
+    Claude,
+    Gemini,
+    Codex,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct OrchestrationSettings {
+    #[serde(default)]
+    pub(crate) enabled: bool,
+    #[serde(default = "default_orchestration_auto_tier")]
+    pub(crate) auto_tier: bool,
+    #[serde(default)]
+    pub(crate) default_tier: OrchestrationTier,
+    #[serde(default)]
+    pub(crate) providers: OrchestrationProviderSettings,
+    #[serde(default)]
+    pub(crate) tier_config: OrchestrationTierSettings,
+}
+
+impl Default for OrchestrationSettings {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            auto_tier: true,
+            default_tier: OrchestrationTier::Fast,
+            providers: OrchestrationProviderSettings::default(),
+            tier_config: OrchestrationTierSettings::default(),
+        }
+    }
+}
+
+fn default_orchestration_auto_tier() -> bool {
+    true
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct OrchestrationProviderSettings {
+    pub(crate) claude: OrchestrationProviderConfig,
+    pub(crate) gemini: OrchestrationProviderConfig,
+    pub(crate) codex: OrchestrationProviderConfig,
+}
+
+impl Default for OrchestrationProviderSettings {
+    fn default() -> Self {
+        Self {
+            claude: OrchestrationProviderConfig {
+                enabled: true,
+                binary: None,
+                default_model: Some("claude-sonnet-4-6".to_string()),
+                timeout_ms: 300_000,
+            },
+            gemini: OrchestrationProviderConfig {
+                enabled: false,
+                binary: None,
+                default_model: Some("gemini-3-flash-preview".to_string()),
+                timeout_ms: 60_000,
+            },
+            codex: OrchestrationProviderConfig {
+                enabled: true,
+                binary: None,
+                default_model: Some("gpt-5.4-medium".to_string()),
+                timeout_ms: 300_000,
+            },
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct OrchestrationProviderConfig {
+    pub(crate) enabled: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) binary: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) default_model: Option<String>,
+    pub(crate) timeout_ms: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct OrchestrationTierSettings {
+    pub(crate) fast: OrchestrationTierConfig,
+    pub(crate) medium: OrchestrationTierConfig,
+    pub(crate) heavy: OrchestrationTierConfig,
+}
+
+impl Default for OrchestrationTierSettings {
+    fn default() -> Self {
+        Self {
+            fast: OrchestrationTierConfig {
+                executor: OrchestrationProvider::Gemini,
+                executor_model: Some("gemini-3-flash-preview".to_string()),
+                reviewer: None,
+                reviewer_model: None,
+                timeout_ms: 60_000,
+            },
+            medium: OrchestrationTierConfig {
+                executor: OrchestrationProvider::Claude,
+                executor_model: Some("claude-sonnet-4-6".to_string()),
+                reviewer: Some(OrchestrationProvider::Gemini),
+                reviewer_model: Some("gemini-3.1-pro-preview".to_string()),
+                timeout_ms: 120_000,
+            },
+            heavy: OrchestrationTierConfig {
+                executor: OrchestrationProvider::Claude,
+                executor_model: Some("claude-opus-4-6".to_string()),
+                reviewer: None,
+                reviewer_model: None,
+                timeout_ms: 600_000,
+            },
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct OrchestrationTierConfig {
+    pub(crate) executor: OrchestrationProvider,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) executor_model: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) reviewer: Option<OrchestrationProvider>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) reviewer_model: Option<String>,
+    pub(crate) timeout_ms: u64,
 }
 
 #[cfg(test)]

@@ -21,6 +21,7 @@ mod menu;
 #[path = "menu_mobile.rs"]
 mod menu;
 mod notifications;
+mod orchestration;
 mod prompts;
 mod remote_backend;
 mod rules;
@@ -304,6 +305,12 @@ pub fn run() {
             tailscale::tailscale_daemon_start,
             tailscale::tailscale_daemon_stop,
             tailscale::tailscale_daemon_status,
+            orchestration::commands::get_orchestration_settings,
+            orchestration::commands::update_orchestration_settings,
+            orchestration::commands::classify_orchestration_task,
+            orchestration::commands::run_orchestration,
+            orchestration::commands::check_provider_availability,
+            orchestration::commands::run_garmr_agent,
             is_mobile_runtime
         ])
         .build(tauri::generate_context!())

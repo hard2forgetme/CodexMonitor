@@ -1,0 +1,141 @@
+.garmr-panel {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-primary, #1a1a2e);
+  z-index: 50;
+}
+
+.garmr-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border, #333);
+  flex-shrink: 0;
+}
+
+.garmr-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary, #eee);
+}
+
+.garmr-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #fff;
+}
+
+.garmr-processing {
+  font-size: 11px;
+  color: var(--text-secondary, #888);
+  animation: garmr-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes garmr-pulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+.garmr-close {
+  background: none;
+  border: none;
+  color: var(--text-secondary, #888);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.garmr-close:hover {
+  background: var(--hover-bg, rgba(255, 255, 255, 0.1));
+  color: var(--text-primary, #eee);
+}
+
+.garmr-panel-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.garmr-message {
+  margin-bottom: 16px;
+}
+
+.garmr-message-user {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.garmr-user-text {
+  background: var(--accent-bg, rgba(99, 102, 241, 0.15));
+  border: 1px solid var(--accent, #6366f1);
+  border-radius: 12px 12px 2px 12px;
+  padding: 8px 14px;
+  font-size: 13px;
+  color: var(--text-primary, #eee);
+  max-width: 80%;
+  word-wrap: break-word;
+}
+
+.garmr-message-assistant {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.garmr-assistant-text {
+  background: var(--bg-secondary, rgba(255, 255, 255, 0.05));
+  border: 1px solid var(--border, #333);
+  border-radius: 12px 12px 12px 2px;
+  padding: 12px 16px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-primary, #eee);
+  max-width: 90%;
+  word-wrap: break-word;
+}
+
+.garmr-assistant-text strong {
+  color: var(--accent, #6366f1);
+}
+
+.garmr-assistant-text code {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+}
+
+.garmr-assistant-text pre {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 6px;
+  padding: 12px;
+  overflow-x: auto;
+  margin: 8px 0;
+}
+
+.garmr-assistant-text pre code {
+  background: none;
+  padding: 0;
+  font-size: 12px;
+}
+
+.garmr-assistant-text hr {
+  border: none;
+  border-top: 1px solid var(--border, #333);
+  margin: 12px 0;
+}

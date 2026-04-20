@@ -208,6 +208,21 @@ function buildDefaultSettings(): AppSettings {
     openAppTargets: DEFAULT_OPEN_APP_TARGETS,
     selectedOpenAppId: DEFAULT_OPEN_APP_ID,
     globalWorktreesFolder: null,
+    orchestration: {
+      enabled: false,
+      autoTier: true,
+      defaultTier: "fast",
+      providers: {
+        claude: { enabled: true, binary: null, defaultModel: "claude-sonnet-4-6", timeoutMs: 300000 },
+        gemini: { enabled: false, binary: null, defaultModel: "gemini-3-flash-preview", timeoutMs: 60000 },
+        codex: { enabled: false, binary: null, defaultModel: "gpt-5.4-medium", timeoutMs: 300000 },
+      },
+      tierConfig: {
+        fast: { executor: "gemini", executorModel: "gemini-3-flash-preview", reviewer: null, reviewerModel: null, timeoutMs: 60000 },
+        medium: { executor: "claude", executorModel: "claude-sonnet-4-6", reviewer: "gemini", reviewerModel: "gemini-3.1-pro-preview", timeoutMs: 120000 },
+        heavy: { executor: "claude", executorModel: "claude-opus-4-6", reviewer: null, reviewerModel: null, timeoutMs: 600000 },
+      },
+    },
   };
 }
 

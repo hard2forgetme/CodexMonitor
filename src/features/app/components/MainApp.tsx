@@ -1,4 +1,5 @@
 import { lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useGarmrSend } from "@/features/orchestration/hooks/useGarmrSend";
 import successSoundUrl from "@/assets/success-notification.mp3";
 import errorSoundUrl from "@/assets/error-notification.mp3";
 import { MainAppShell } from "@app/components/MainAppShell";
@@ -555,6 +556,7 @@ export default function MainApp() {
     handleUserInputSubmit,
     refreshAccountInfo,
     refreshAccountRateLimits,
+    injectMessage,
   } = useThreads({
     activeWorkspace,
     onWorkspaceConnected: markWorkspaceConnected,
@@ -1465,6 +1467,22 @@ export default function MainApp() {
     removeImagesForThread,
   });
 
+  const {
+    garmrSend,
+    isGarmrEnabled,
+  } = useGarmrSend({
+    appSettings,
+    activeWorkspaceId: activeWorkspace?.id ?? null,
+    activeWorkspacePath: activeWorkspace?.path ?? null,
+    activeThreadId,
+    injectMessage,
+    originalSend: handleComposerSendWithDraftStart,
+  });
+
+  const effectiveComposerSend = isGarmrEnabled
+    ? garmrSend
+    : handleComposerSendWithDraftStart;
+
   const handleOpenThreadLinkFromExternal = useCallback(
     (workspaceId: string, threadId: string) => {
       setActiveTab("codex");
@@ -1867,7 +1885,7 @@ export default function MainApp() {
     confirmCommit,
     updateCustomInstructions,
     confirmCustom,
-    handleComposerSendWithDraftStart,
+    handleComposerSendWithDraftStart: effectiveComposerSend,
     interruptTurn,
     terminalOpen,
     debugOpen,

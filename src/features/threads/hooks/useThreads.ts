@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef } from "react";
 import * as Sentry from "@sentry/react";
 import type {
   CollabAgentRef,
+  ConversationItem,
   CustomPromptOption,
   DebugEntry,
   ServiceTier,
@@ -962,6 +963,13 @@ export function useThreads({
     [archiveThread, unpinThread],
   );
 
+  const injectMessage = useCallback(
+    (workspaceId: string, threadId: string, item: ConversationItem) => {
+      dispatch({ type: "upsertItem", workspaceId, threadId, item });
+    },
+    [],
+  );
+
   return {
     activeThreadId,
     setActiveThreadId,
@@ -1036,5 +1044,6 @@ export function useThreads({
     handleApprovalDecision,
     handleApprovalRemember,
     handleUserInputSubmit,
+    injectMessage,
   };
 }

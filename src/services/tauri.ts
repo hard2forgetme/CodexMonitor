@@ -8,6 +8,10 @@ import type {
   DictationModelStatus,
   DictationSessionState,
   LocalUsageSnapshot,
+  OrchestrationResult,
+  OrchestrationSettings,
+  ProviderAvailability,
+  TaskClassification,
   TcpDaemonStatus,
   TailscaleDaemonCommandPreview,
   TailscaleStatus,
@@ -16,6 +20,7 @@ import type {
   WorkspaceInfo,
   AppMention,
   WorkspaceSettings,
+  OrchestrationTier,
 } from "../types";
 import type {
   GitFileDiff,
@@ -1193,4 +1198,46 @@ export async function sendNotification(
   }
 
   await attemptFallback();
+}
+
+// ---------------------------------------------------------------------------
+// Orchestration (GARMR multi-provider integration)
+// ---------------------------------------------------------------------------
+
+export async function getOrchestrationSettings(): Promise<OrchestrationSettings> {
+  return invoke<OrchestrationSettings>("get_orchestration_settings");
+}
+
+export async function updateOrchestrationSettings(
+  orchestration: OrchestrationSettings,
+): Promise<OrchestrationSettings> {
+  return invoke<OrchestrationSettings>("update_orchestration_settings", {
+    orchestration,
+  });
+}
+
+export async function classifyOrchestrationTask(
+  query: string,
+): Promise<TaskClassification> {
+  return invoke<TaskClassification>("classify_orchestration_task", { query });
+}
+
+export async function runOrchestration(request: {
+  query: string;
+  cwd?: string | null;
+  tierOverride?: OrchestrationTier | null;
+}): Promise<OrchestrationResult> {
+  return invoke<OrchestrationResult>("run_orchestration", { request });
+}
+
+export async function runGarmrAgent(request: {
+  query: string;
+  cwd?: string | null;
+  tier: OrchestrationTier;
+}): Promise<OrchestrationResult> {
+  return invoke<OrchestrationResult>("run_garmr_agent", { request });
+}
+
+export async function checkProviderAvailability(): Promise<ProviderAvailability> {
+  return invoke<ProviderAvailability>("check_provider_availability");
 }

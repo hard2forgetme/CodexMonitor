@@ -274,6 +274,10 @@ export function useSettingsViewOrchestration({
     agentsSectionProps,
     codexSectionProps,
     featuresSectionProps,
+    orchestrationSectionProps: {
+      appSettings,
+      onUpdateAppSettings,
+    },
   };
 }
 

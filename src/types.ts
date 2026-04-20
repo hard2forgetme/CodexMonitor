@@ -310,6 +310,7 @@ export type AppSettings = {
   globalWorktreesFolder: string | null;
   openAppTargets: OpenAppTarget[];
   selectedOpenAppId: string;
+  orchestration: OrchestrationSettings;
 };
 
 export type CodexFeatureStage =
@@ -708,4 +709,137 @@ export type DictationEvent =
 export type DictationTranscript = {
   id: string;
   text: string;
+};
+
+// ---------------------------------------------------------------------------
+// Orchestration types (GARMR multi-provider integration)
+// ---------------------------------------------------------------------------
+
+export type OrchestrationTier = "fast" | "medium" | "heavy";
+export type OrchestrationProvider = "claude" | "gemini" | "codex";
+
+export type OrchestrationProviderConfig = {
+  enabled: boolean;
+  binary?: string | null;
+  defaultModel?: string | null;
+  timeoutMs: number;
+};
+
+export type OrchestrationProviderSettings = {
+  claude: OrchestrationProviderConfig;
+  gemini: OrchestrationProviderConfig;
+  codex: OrchestrationProviderConfig;
+};
+
+export type OrchestrationTierConfig = {
+  executor: OrchestrationProvider;
+  executorModel?: string | null;
+  reviewer?: OrchestrationProvider | null;
+  reviewerModel?: string | null;
+  timeoutMs: number;
+};
+
+export type OrchestrationTierSettings = {
+  fast: OrchestrationTierConfig;
+  medium: OrchestrationTierConfig;
+  heavy: OrchestrationTierConfig;
+};
+
+export type OrchestrationSettings = {
+  enabled: boolean;
+  autoTier: boolean;
+  defaultTier: OrchestrationTier;
+  providers: OrchestrationProviderSettings;
+  tierConfig: OrchestrationTierSettings;
+};
+
+export type TaskClassification = {
+  complexity: number;
+  risk: number;
+  length: number;
+  expertise: number;
+  tier: OrchestrationTier;
+  confidence: number;
+  reasoning: string;
+  synapseMode: boolean;
+};
+
+export type ProviderResponse = {
+  success: boolean;
+  output: string;
+  thinking?: string | null;
+  toolCalls: ToolCallEntry[];
+  modelUsed: string;
+  provider: OrchestrationProvider;
+  durationMs: number;
+  error?: string | null;
+};
+
+export type ToolCallEntry = {
+  type: string;
+  name: string;
+  status?: string | null;
+  output?: string | null;
+};
+
+export type ReviewStatus = "approved" | "needs_revision";
+
+export type ReviewResult = {
+  reviewer: OrchestrationProvider;
+  reviewerModel: string;
+  status: ReviewStatus;
+  suggestions: string;
+  durationMs: number;
+};
+
+export type CouncilRole =
+  | "architect"
+  | "engineer"
+  | "security"
+  | "analyst"
+  | "critic"
+  | "strategist";
+
+export type CouncilMember = {
+  agentId: string;
+  modelId: string;
+  provider: OrchestrationProvider;
+  role: CouncilRole;
+  systemPrompt: string;
+};
+
+export type DebateRound = {
+  roundNumber: number;
+  roundType: string;
+  memberId: string;
+  content: string;
+  timestampMs: number;
+};
+
+export type CouncilResult = {
+  members: CouncilMember[];
+  rounds: DebateRound[];
+  synthesis: string;
+  totalDurationMs: number;
+};
+
+export type OrchestrationResult = {
+  classification: TaskClassification;
+  primaryResponse: ProviderResponse;
+  review?: ReviewResult | null;
+  council?: CouncilResult | null;
+  totalDurationMs: number;
+  confidence: number;
+};
+
+export type OrchestrationEvent = {
+  type: string;
+  timestampMs: number;
+  data: Record<string, unknown>;
+};
+
+export type ProviderAvailability = {
+  claude: boolean;
+  gemini: boolean;
+  codex: boolean;
 };

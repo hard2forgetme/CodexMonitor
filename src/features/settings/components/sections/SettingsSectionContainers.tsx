@@ -4,6 +4,7 @@ import { SettingsDictationSection } from "./SettingsDictationSection";
 import { SettingsDisplaySection } from "./SettingsDisplaySection";
 import { SettingsEnvironmentsSection } from "./SettingsEnvironmentsSection";
 import { SettingsFeaturesSection } from "./SettingsFeaturesSection";
+import { SettingsOrchestrationSection } from "./SettingsOrchestrationSection";
 import { SettingsGitSection } from "./SettingsGitSection";
 import { SettingsOpenAppsSection } from "./SettingsOpenAppsSection";
 import { SettingsProjectsSection } from "./SettingsProjectsSection";
@@ -61,6 +62,9 @@ export function SettingsSectionContainers({
   }
   if (activeSection === "features") {
     return <SettingsFeaturesSection {...orchestration.featuresSectionProps} />;
+  }
+  if (activeSection === "orchestration") {
+    return <SettingsOrchestrationSection {...orchestration.orchestrationSectionProps} />;
   }
   return null;
 }
