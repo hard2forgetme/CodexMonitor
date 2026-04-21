@@ -975,6 +975,9 @@ export function useThreads({
     setActiveThreadId,
     hasLocalThreadSnapshot,
     activeItems,
+    /** Non-reactive getter — safe to call inside event handlers. */
+    getItemsForThread: (threadId: string): ConversationItem[] =>
+      itemsByThreadRef.current[threadId] ?? [],
     approvals: state.approvals,
     userInputRequests: state.userInputRequests,
     threadsByWorkspace: state.threadsByWorkspace,

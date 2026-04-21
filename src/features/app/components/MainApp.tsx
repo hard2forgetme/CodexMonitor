@@ -1,5 +1,6 @@
 import { lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useGarmrSend } from "@/features/orchestration/hooks/useGarmrSend";
+import { GarmrContextIndicator } from "@/features/orchestration/components/GarmrContextIndicator";
 import successSoundUrl from "@/assets/success-notification.mp3";
 import errorSoundUrl from "@/assets/error-notification.mp3";
 import { MainAppShell } from "@app/components/MainAppShell";
@@ -491,6 +492,7 @@ export default function MainApp() {
     hasLocalThreadSnapshot,
     activeThreadId,
     activeItems,
+    getItemsForThread,
     approvals,
     userInputRequests,
     threadsByWorkspace,
@@ -1470,6 +1472,8 @@ export default function MainApp() {
   const {
     garmrSend,
     isGarmrEnabled,
+    previewContext: previewGarmrContext,
+    lastContextSent: lastGarmrContextSent,
   } = useGarmrSend({
     appSettings,
     activeWorkspaceId: activeWorkspace?.id ?? null,
@@ -1477,11 +1481,26 @@ export default function MainApp() {
     activeThreadId,
     injectMessage,
     originalSend: handleComposerSendWithDraftStart,
+    getItemsForThread,
   });
 
   const effectiveComposerSend = isGarmrEnabled
     ? garmrSend
     : handleComposerSendWithDraftStart;
+
+  // Build the GARMR context indicator element that renders above the composer
+  // whenever orchestration is enabled for this workspace+thread. We compute
+  // the preview at render time so the pill reflects the current thread state.
+  const garmrContextIndicator = useMemo(() => {
+    if (!isGarmrEnabled) return null;
+    const preview = previewGarmrContext ? previewGarmrContext() : null;
+    return (
+      <GarmrContextIndicator
+        preview={preview}
+        lastSent={lastGarmrContextSent ?? null}
+      />
+    );
+  }, [isGarmrEnabled, previewGarmrContext, lastGarmrContextSent, activeThreadId]);
 
   const handleOpenThreadLinkFromExternal = useCallback(
     (workspaceId: string, threadId: string) => {
@@ -1917,6 +1936,7 @@ export default function MainApp() {
     dismissErrorToast,
     showDebugButton,
     handleDebugClick,
+    composerTopSlot: garmrContextIndicator,
   });
 
   const {

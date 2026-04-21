@@ -15,6 +15,10 @@ pub(crate) struct OrchestrationRequest {
     pub(crate) cwd: Option<String>,
     #[serde(default)]
     pub(crate) tier_override: Option<Tier>,
+    /// Recent conversation turns (most recent last), forwarded so that
+    /// orchestration pipelines see the thread the user is working in.
+    #[serde(default)]
+    pub(crate) context: Option<Vec<ContextMsg>>,
 }
 
 /// Get the current orchestration settings.
@@ -77,6 +81,7 @@ pub(crate) async fn run_orchestration(
             &request.query,
             request.cwd.as_deref(),
             request.tier_override,
+            request.context.as_deref(),
         )
         .await
 }
@@ -91,6 +96,10 @@ pub(crate) struct GarmrAgentRequest {
     pub(crate) query: String,
     pub(crate) cwd: Option<String>,
     pub(crate) tier: Tier,
+    /// Recent conversation turns (most recent last), included in the planner,
+    /// executor, and reviewer prompts so follow-ups understand the thread.
+    #[serde(default)]
+    pub(crate) context: Option<Vec<ContextMsg>>,
 }
 
 #[tauri::command]
@@ -131,14 +140,16 @@ pub(crate) async fn run_garmr_agent(
         _ => settings.tier_config.medium.reviewer_model.as_deref(),
     };
 
+    let transcript = format_context_transcript(request.context.as_deref());
     let planning_prompt = format!(
         "You are the GARMR planning council. Analyze this task and create a detailed, \
          actionable execution plan. Be specific about what files to change, what logic to add, \
          and what order to work in. The plan will be given to an AI coding agent that will \
          execute it against the actual codebase.\n\n\
-         Task: {}\n\n\
+         {transcript}\
+         Task: {task}\n\n\
          Create a thorough plan with clear steps.",
-        request.query
+        task = request.query
     );
 
     emit_event(
@@ -178,14 +189,21 @@ pub(crate) async fn run_garmr_agent(
         _ => settings.tier_config.medium.executor_model.as_deref(),
     };
 
-    let system_prompt = if plan_text.is_empty() {
+    let system_prompt = if plan_text.is_empty() && transcript.is_empty() {
         None
     } else {
+        let plan_section = if plan_text.is_empty() {
+            String::new()
+        } else {
+            format!(
+                "=== COUNCIL PLAN ===\n{plan_text}\n=== END PLAN ===\n\n\
+                 Work through the plan step by step. Edit files, run tests, verify your changes.\n\n"
+            )
+        };
         Some(format!(
-            "You have a GARMR council plan to follow. Execute it thoroughly against the codebase.\n\n\
-             === COUNCIL PLAN ===\n{}\n=== END PLAN ===\n\n\
-             Work through the plan step by step. Edit files, run tests, verify your changes.",
-            plan_text
+            "{transcript}{plan_section}\
+             You have a GARMR council plan and/or conversation context above. \
+             Execute thoroughly against the codebase."
         ))
     };
 
@@ -217,8 +235,10 @@ pub(crate) async fn run_garmr_agent(
     let review = if request.tier == Tier::Medium && agent_response.success {
         let review_prompt = format!(
             "Review this AI agent's work on the task. Was it thorough? Any issues?\n\n\
-             Original task: {}\n\nAgent output: {}",
-            request.query, agent_response.output
+             {transcript}\
+             Original task: {task}\n\nAgent output: {output}",
+            task = request.query,
+            output = agent_response.output
         );
         let review_response = call_provider(
             Provider::Gemini,

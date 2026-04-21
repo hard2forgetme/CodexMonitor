@@ -20,16 +20,24 @@ impl OrchestrationRouter {
     }
 
     /// Process a query through the orchestration pipeline.
+    ///
+    /// `context` is a slice of prior conversation turns (most recent last).
+    /// When supplied, it is prepended to the query seen by executors,
+    /// reviewers, and council members — so follow-ups like "refactor that"
+    /// resolve against the thread the user is actually in. Classification
+    /// still uses the raw user query so tier heuristics stay stable.
     pub(crate) async fn process(
         &self,
         app: &AppHandle,
         query: &str,
         cwd: Option<&str>,
         tier_override: Option<Tier>,
+        context: Option<&[ContextMsg]>,
     ) -> Result<OrchestrationResult, String> {
         let total_start = Instant::now();
 
-        // Step 1: Classify the task.
+        // Step 1: Classify the task (using the raw query, not context — otherwise
+        // previous messages would skew tier detection).
         emit_event(app, OrchestrationEvent::now("classification_started"));
         let mut classification = classify_task(query);
 
@@ -45,19 +53,22 @@ impl OrchestrationRouter {
             classification.tier = self.settings.default_tier;
         }
 
+        let context_len = context.map(|c| c.len()).unwrap_or(0);
         emit_event(
             app,
             OrchestrationEvent::now("classification_completed")
                 .with_data("tier", json!(classification.tier))
                 .with_data("score", json!(classification.confidence))
-                .with_data("synapse", json!(classification.synapse_mode)),
+                .with_data("synapse", json!(classification.synapse_mode))
+                .with_data("contextMessages", json!(context_len)),
         );
 
-        // Step 2: Route based on tier.
+        // Step 2: Route based on tier. Context flows through so executors
+        // and reviewers see the conversation history.
         let result = match classification.tier {
-            Tier::Fast => self.execute_fast(app, query, &classification, cwd).await,
-            Tier::Medium => self.execute_medium(app, query, &classification, cwd).await,
-            Tier::Heavy => self.execute_heavy(app, query, &classification, cwd).await,
+            Tier::Fast => self.execute_fast(app, query, &classification, cwd, context).await,
+            Tier::Medium => self.execute_medium(app, query, &classification, cwd, context).await,
+            Tier::Heavy => self.execute_heavy(app, query, &classification, cwd, context).await,
         }?;
 
         emit_event(
@@ -80,6 +91,7 @@ impl OrchestrationRouter {
         query: &str,
         classification: &TaskClassification,
         cwd: Option<&str>,
+        context: Option<&[ContextMsg]>,
     ) -> Result<OrchestrationResult, String> {
         let start = Instant::now();
         let tier_config = &self.settings.tier_config.fast;
@@ -95,10 +107,11 @@ impl OrchestrationRouter {
 
         // FAST tier uses a shorter timeout — simple queries shouldn't wait as long.
         let fast_timeout = config.timeout_ms.min(30_000);
+        let enriched = query_with_context(query, context);
         let response = call_provider(
             provider,
             &config,
-            query,
+            &enriched,
             tier_config.executor_model.as_deref(),
             cwd,
             fast_timeout,
@@ -106,7 +119,7 @@ impl OrchestrationRouter {
         .await;
 
         let response = if !response.success {
-            self.try_fallback(app, query, provider, cwd)
+            self.try_fallback(app, &enriched, provider, cwd)
                 .await
                 .unwrap_or(response)
         } else {
@@ -139,6 +152,7 @@ impl OrchestrationRouter {
         query: &str,
         classification: &TaskClassification,
         cwd: Option<&str>,
+        context: Option<&[ContextMsg]>,
     ) -> Result<OrchestrationResult, String> {
         let start = Instant::now();
         let tier_config = &self.settings.tier_config.medium;
@@ -151,10 +165,11 @@ impl OrchestrationRouter {
         );
 
         let executor_config = self.get_provider_config(tier_config.executor);
+        let enriched_query = query_with_context(query, context);
         let primary_response = call_provider(
             tier_config.executor,
             &executor_config,
-            query,
+            &enriched_query,
             tier_config.executor_model.as_deref(),
             cwd,
             executor_config.timeout_ms,
@@ -177,8 +192,10 @@ impl OrchestrationRouter {
                 );
 
                 let reviewer_config = self.get_provider_config(reviewer_provider);
+                // Pass the enriched query so the reviewer sees the same
+                // conversation context the executor saw.
                 let review_result = dual_model_council(
-                    query,
+                    &enriched_query,
                     &primary_response,
                     reviewer_provider,
                     &reviewer_config,
@@ -222,6 +239,7 @@ impl OrchestrationRouter {
         query: &str,
         classification: &TaskClassification,
         cwd: Option<&str>,
+        context: Option<&[ContextMsg]>,
     ) -> Result<OrchestrationResult, String> {
         let start = Instant::now();
 
@@ -232,7 +250,10 @@ impl OrchestrationRouter {
                     .with_data("mode", json!("synapse")),
             );
 
-            let council_result = synapse_council(query, &self.settings, cwd).await;
+            // SYNAPSE members all see the same enriched query so they debate
+            // the right problem, not a context-free follow-up.
+            let enriched_query = query_with_context(query, context);
+            let council_result = synapse_council(&enriched_query, &self.settings, cwd).await;
 
             emit_event(
                 app,
@@ -263,7 +284,7 @@ impl OrchestrationRouter {
             })
         } else {
             let medium_result = self
-                .execute_medium(app, query, classification, cwd)
+                .execute_medium(app, query, classification, cwd, context)
                 .await?;
             Ok(OrchestrationResult {
                 total_duration_ms: start.elapsed().as_millis() as u64,

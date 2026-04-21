@@ -139,3 +139,112 @@
   border-top: 1px solid var(--border, #333);
   margin: 12px 0;
 }
+
+/* --- Context preview inside GarmrPanel + standalone indicator above composer --- */
+
+.garmr-context-section,
+.garmr-context-indicator {
+  border-top: 1px solid var(--border, #222);
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--text-muted, #9aa);
+  background: var(--surface-subtle, rgba(255, 255, 255, 0.02));
+}
+
+.garmr-context-indicator {
+  border: 1px solid var(--border, #222);
+  border-radius: 8px;
+  margin: 0 0 8px 0;
+  padding: 6px 10px;
+}
+
+.garmr-context-indicator-empty {
+  font-style: italic;
+  opacity: 0.75;
+}
+
+.garmr-context-toggle,
+.garmr-context-indicator-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  padding: 0;
+  width: 100%;
+  text-align: left;
+}
+
+.garmr-context-toggle:hover .garmr-context-label,
+.garmr-context-indicator-button:hover .garmr-context-indicator-label {
+  color: var(--text, #ddd);
+}
+
+.garmr-context-chevron,
+.garmr-context-indicator-chevron {
+  font-size: 10px;
+  width: 12px;
+  display: inline-block;
+}
+
+.garmr-context-indicator-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent, #5aa0ff);
+  display: inline-block;
+}
+
+.garmr-context-meta,
+.garmr-context-indicator-meta {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+}
+
+.garmr-context-transcript,
+.garmr-context-indicator-list {
+  list-style: none;
+  padding: 8px 0 2px 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.garmr-context-msg,
+.garmr-context-indicator-msg {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.garmr-context-role,
+.garmr-context-indicator-role {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding-top: 2px;
+  color: var(--text-muted, #778);
+}
+
+.garmr-context-msg-user .garmr-context-role,
+.garmr-context-indicator-msg-user .garmr-context-indicator-role {
+  color: var(--accent, #5aa0ff);
+}
+
+.garmr-context-text,
+.garmr-context-indicator-text {
+  min-width: 0;
+  word-break: break-word;
+}
+
+.composer-top-slot {
+  padding: 0 8px;
+}

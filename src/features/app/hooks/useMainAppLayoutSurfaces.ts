@@ -225,6 +225,8 @@ type UseMainAppLayoutSurfacesArgs = {
   dismissErrorToast: LayoutNodesOptions["primary"]["errorToastsProps"]["onDismiss"];
   showDebugButton: boolean;
   handleDebugClick: () => void;
+  /** Optional content rendered at the top of the composer footer. */
+  composerTopSlot?: React.ReactNode;
 };
 
 export function useMainAppLayoutSurfaces({
@@ -386,6 +388,7 @@ export function useMainAppLayoutSurfaces({
   dismissErrorToast,
   showDebugButton,
   handleDebugClick,
+  composerTopSlot,
 }: UseMainAppLayoutSurfacesArgs): LayoutNodesOptions {
   const sidebarRateLimits = activeWorkspace ? activeRateLimits : homeRateLimits;
   const sidebarAccount = activeWorkspace ? activeAccount : homeAccount;
@@ -484,6 +487,7 @@ export function useMainAppLayoutSurfaces({
       },
       composerProps: composerWorkspaceState.showComposer
         ? {
+            topSlot: composerTopSlot,
             onSend: handleComposerSendWithDraftStart,
             onStop: interruptTurn,
             canStop: composerWorkspaceState.canInterrupt,

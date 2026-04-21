@@ -1222,10 +1222,20 @@ export async function classifyOrchestrationTask(
   return invoke<TaskClassification>("classify_orchestration_task", { query });
 }
 
+/**
+ * A single prior conversation turn forwarded to the orchestration pipeline
+ * so follow-up queries ("refactor that") resolve against the thread.
+ */
+export type OrchestrationContextMsg = {
+  role: "user" | "assistant" | "system";
+  text: string;
+};
+
 export async function runOrchestration(request: {
   query: string;
   cwd?: string | null;
   tierOverride?: OrchestrationTier | null;
+  context?: OrchestrationContextMsg[] | null;
 }): Promise<OrchestrationResult> {
   return invoke<OrchestrationResult>("run_orchestration", { request });
 }
@@ -1234,6 +1244,7 @@ export async function runGarmrAgent(request: {
   query: string;
   cwd?: string | null;
   tier: OrchestrationTier;
+  context?: OrchestrationContextMsg[] | null;
 }): Promise<OrchestrationResult> {
   return invoke<OrchestrationResult>("run_garmr_agent", { request });
 }

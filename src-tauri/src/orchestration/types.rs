@@ -165,3 +165,122 @@ impl OrchestrationEvent {
         self
     }
 }
+
+/// A single prior conversation turn, forwarded from the frontend to give
+/// orchestration pipelines the context of the thread the user is working in.
+/// Kept intentionally minimal: no images, no tool call dumps, no diffs —
+/// only the textual gist, so token budget stays predictable.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ContextMsg {
+    /// "user" | "assistant" | "system" — free-form, used only for labelling.
+    pub(crate) role: String,
+    /// Plain-text content, already truncated / sanitized by the frontend.
+    pub(crate) text: String,
+}
+
+/// Render a compact transcript from prior context messages. Returns an empty
+/// string when no context is provided, so callers can safely concatenate.
+pub(crate) fn format_context_transcript(context: Option<&[ContextMsg]>) -> String {
+    let Some(items) = context else {
+        return String::new();
+    };
+    if items.is_empty() {
+        return String::new();
+    }
+    let mut out = String::from("Recent conversation (most recent last):\n");
+    for msg in items {
+        let role = if msg.role.is_empty() {
+            "user"
+        } else {
+            msg.role.as_str()
+        };
+        // Cap any single message at 2000 chars to keep things tidy.
+        let text = if msg.text.len() > 2000 {
+            let mut trimmed = msg.text[..2000].to_string();
+            trimmed.push_str("… [truncated]");
+            trimmed
+        } else {
+            msg.text.clone()
+        };
+        out.push_str(&format!("- {role}: {text}\n"));
+    }
+    out.push('\n');
+    out
+}
+
+/// Combine prior context with the current user request in a single string
+/// suitable for passing as the full prompt to a provider. When there is no
+/// context, returns the query unchanged.
+pub(crate) fn query_with_context(query: &str, context: Option<&[ContextMsg]>) -> String {
+    let transcript = format_context_transcript(context);
+    if transcript.is_empty() {
+        query.to_string()
+    } else {
+        format!("{transcript}Current request: {query}")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn msg(role: &str, text: &str) -> ContextMsg {
+        ContextMsg {
+            role: role.to_string(),
+            text: text.to_string(),
+        }
+    }
+
+    #[test]
+    fn transcript_is_empty_when_no_context() {
+        assert_eq!(format_context_transcript(None), "");
+        assert_eq!(format_context_transcript(Some(&[])), "");
+    }
+
+    #[test]
+    fn transcript_lists_messages_in_order() {
+        let ctx = vec![
+            msg("user", "hello"),
+            msg("assistant", "hi!"),
+            msg("user", "follow up"),
+        ];
+        let t = format_context_transcript(Some(&ctx));
+        assert!(t.starts_with("Recent conversation"));
+        let hello_pos = t.find("hello").unwrap();
+        let hi_pos = t.find("hi!").unwrap();
+        let follow_pos = t.find("follow up").unwrap();
+        assert!(hello_pos < hi_pos && hi_pos < follow_pos);
+    }
+
+    #[test]
+    fn transcript_labels_blank_role_as_user() {
+        let ctx = vec![msg("", "anonymous")];
+        let t = format_context_transcript(Some(&ctx));
+        assert!(t.contains("- user: anonymous"));
+    }
+
+    #[test]
+    fn transcript_truncates_long_messages() {
+        let long = "x".repeat(3000);
+        let ctx = vec![msg("assistant", &long)];
+        let t = format_context_transcript(Some(&ctx));
+        assert!(t.contains("[truncated]"));
+        assert!(t.len() < 3000 + 100);
+    }
+
+    #[test]
+    fn query_with_context_passthrough_when_empty() {
+        assert_eq!(query_with_context("do it", None), "do it");
+        assert_eq!(query_with_context("do it", Some(&[])), "do it");
+    }
+
+    #[test]
+    fn query_with_context_prepends_transcript() {
+        let ctx = vec![msg("user", "previous")];
+        let result = query_with_context("do it", Some(&ctx));
+        assert!(result.starts_with("Recent conversation"));
+        assert!(result.ends_with("Current request: do it"));
+        assert!(result.contains("previous"));
+    }
+}

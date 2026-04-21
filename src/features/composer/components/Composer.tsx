@@ -149,6 +149,13 @@ type ComposerProps = {
     disabled?: boolean;
     onSelect: () => void | Promise<void>;
   }[];
+  /**
+   * Optional content rendered at the very top of the composer footer,
+   * above the queue and follow-up hint. Used to surface orchestration
+   * context (e.g. GARMR transcript preview) without plumbing one-off
+   * props through every layer.
+   */
+  topSlot?: React.ReactNode;
 };
 
 const DEFAULT_EDITOR_SETTINGS: ComposerEditorSettings = {
@@ -247,6 +254,7 @@ export const Composer = memo(function Composer({
   onReviewPromptConfirmCustom,
   onFileAutocompleteActiveChange,
   contextActions = [],
+  topSlot,
 }: ComposerProps) {
   const [text, setText] = useState(draftText);
   const [selectionStart, setSelectionStart] = useState<number | null>(null);
@@ -644,6 +652,7 @@ export const Composer = memo(function Composer({
 
   return (
     <footer className={`composer${disabled ? " is-disabled" : ""}`}>
+      {topSlot ? <div className="composer-top-slot">{topSlot}</div> : null}
       <ComposerQueue
         queuedMessages={queuedMessages}
         pausedReason={queuePausedReason}

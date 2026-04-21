@@ -6,7 +6,16 @@ import type {
   ConversationItem,
   OrchestrationResult,
 } from "@/types";
-import { classifyOrchestrationTask, runOrchestration, runGarmrAgent } from "@/services/tauri";
+import {
+  classifyOrchestrationTask,
+  runOrchestration,
+  runGarmrAgent,
+  type OrchestrationContextMsg,
+} from "@/services/tauri";
+import {
+  buildContextFromItems,
+  DEFAULT_CONTEXT_LIMIT,
+} from "@/features/orchestration/utils/buildContext";
 
 type UseGarmrSendOptions = {
   appSettings: AppSettings;
@@ -24,6 +33,14 @@ type UseGarmrSendOptions = {
     appMentions?: AppMention[],
     submitIntent?: ComposerSendIntent,
   ) => Promise<void>;
+  /**
+   * Returns the current ConversationItems for a thread. Typically wired to
+   * `useThreads().getItemsForThread`. Used to build the conversation context
+   * that we forward to the orchestration pipeline.
+   */
+  getItemsForThread?: (threadId: string) => ConversationItem[];
+  /** Maximum number of recent messages to include as context. */
+  contextMessageLimit?: number;
 };
 
 /**
@@ -84,11 +101,26 @@ export function useGarmrSend({
   activeThreadId,
   injectMessage,
   originalSend,
+  getItemsForThread,
+  contextMessageLimit = DEFAULT_CONTEXT_LIMIT,
 }: UseGarmrSendOptions) {
   const [isProcessing, setIsProcessing] = useState(false);
+  const [lastContextSent, setLastContextSent] = useState<
+    OrchestrationContextMsg[] | null
+  >(null);
 
   const isEnabled = appSettings.orchestration?.enabled ?? false;
   const autoTier = appSettings.orchestration?.autoTier ?? true;
+
+  /**
+   * Build a preview of the context that WOULD be sent for the current
+   * thread. Used by UI (GarmrPanel) to show the transcript before send.
+   */
+  const previewContext = useCallback((): OrchestrationContextMsg[] | null => {
+    if (!activeThreadId || !getItemsForThread) return null;
+    const items = getItemsForThread(activeThreadId);
+    return buildContextFromItems(items, contextMessageLimit);
+  }, [activeThreadId, getItemsForThread, contextMessageLimit]);
 
   const garmrSend = useCallback(
     async (
@@ -102,6 +134,11 @@ export function useGarmrSend({
       }
 
       setIsProcessing(true);
+
+      // Build conversation context BEFORE injecting the new user message,
+      // so the context reflects the prior thread (not the just-sent turn).
+      const context = previewContext();
+      setLastContextSent(context);
 
       try {
         // Step 1: Classify the task to determine the tier
@@ -135,6 +172,7 @@ export function useGarmrSend({
               query: text,
               cwd: activeWorkspacePath,
               tierOverride: "fast",
+              context,
             });
 
             injectMessage(activeWorkspaceId, activeThreadId, {
@@ -189,6 +227,7 @@ export function useGarmrSend({
             query: text,
             cwd: activeWorkspacePath,
             tier,
+            context,
           });
 
           // Replace the status message with the full response
@@ -221,12 +260,25 @@ export function useGarmrSend({
         return originalSend(text, images, appMentions, submitIntent);
       }
     },
-    [isEnabled, autoTier, activeWorkspaceId, activeWorkspacePath, activeThreadId, injectMessage, originalSend],
+    [
+      isEnabled,
+      autoTier,
+      activeWorkspaceId,
+      activeWorkspacePath,
+      activeThreadId,
+      injectMessage,
+      originalSend,
+      previewContext,
+    ],
   );
 
   return {
     garmrSend,
     isGarmrEnabled: isEnabled,
     isGarmrProcessing: isProcessing,
+    /** Preview of the context that WOULD be sent if the user hits send now. */
+    previewContext,
+    /** The context that was actually sent in the most recent dispatch. */
+    lastContextSent,
   };
 }
